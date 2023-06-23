@@ -1627,9 +1627,9 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
             const node = getParseTreeNode(nodeIn, isObjectLiteralElementLike);
             return node ? getContextualTypeForObjectLiteralElement(node, /*contextFlags*/ undefined) : undefined;
         },
-        getContextualTypeForArgumentAtIndex: (nodeIn, argIndex) => {
+        getContextualTypeForArgumentAtIndex: (nodeIn, argIndex, contextFlags) => {
             const node = getParseTreeNode(nodeIn, isCallLikeExpression);
-            return node && getContextualTypeForArgumentAtIndex(node, argIndex);
+            return node && getContextualTypeForArgumentAtIndex(node, argIndex, contextFlags);
         },
         getContextualTypeForJsxAttribute: (nodeIn) => {
             const node = getParseTreeNode(nodeIn, isJsxAttributeLike);
@@ -28956,7 +28956,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
         return argIndex === -1 ? undefined : getContextualTypeForArgumentAtIndex(callTarget, argIndex);
     }
 
-    function getContextualTypeForArgumentAtIndex(callTarget: CallLikeExpression, argIndex: number): Type {
+    function getContextualTypeForArgumentAtIndex(callTarget: CallLikeExpression, argIndex: number, contextFlags?: ContextFlags): Type {
         if (isImportCall(callTarget)) {
             return argIndex === 0 ? stringType :
                 argIndex === 1 ? getGlobalImportCallOptionsType(/*reportErrors*/ false) :
@@ -28971,9 +28971,17 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
             return getEffectiveFirstArgumentForJsxSignature(signature, callTarget);
         }
         const restIndex = signature.parameters.length - 1;
-        return signatureHasRestParameter(signature) && argIndex >= restIndex ?
-            getIndexedAccessType(getTypeOfSymbol(signature.parameters[restIndex]), getNumberLiteralType(argIndex - restIndex), AccessFlags.Contextual) :
-            getTypeAtPosition(signature, argIndex);
+        // return signatureHasRestParameter(signature) && argIndex >= restIndex ?
+        //     getIndexedAccessType(getTypeOfSymbol(signature.parameters[restIndex]), getNumberLiteralType(argIndex - restIndex), AccessFlags.Contextual) :
+        //     getTypeAtPosition(signature, argIndex);
+        if (signatureHasRestParameter(signature) && argIndex >= restIndex) {
+            return getIndexedAccessType(getTypeOfSymbol(signature.parameters[restIndex]), getNumberLiteralType(argIndex - restIndex), AccessFlags.Contextual);
+        }
+        else {
+            return contextFlags && contextFlags & ContextFlags.Completions ?
+                getJSDocSuggestType(signature.parameters[argIndex]) || getTypeAtPosition(signature, argIndex) :
+                getTypeAtPosition(signature, argIndex);
+        }
     }
 
     function getContextualTypeForDecorator(decorator: Decorator): Type | undefined {

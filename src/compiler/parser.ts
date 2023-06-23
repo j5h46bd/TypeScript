@@ -1108,6 +1108,7 @@ const forEachChildTable: ForEachChildTable = {
     [SyntaxKind.JSDocEnumTag]: forEachChildInJSDocTypeLikeTag,
     [SyntaxKind.JSDocSatisfiesTag]: forEachChildInJSDocTypeLikeTag,
     [SyntaxKind.JSDocSuggestTag]: forEachChildInJSDocTypeLikeTag,
+    [SyntaxKind.JSDocSuggestPropertyTag]: forEachChildInJSDocParameterOrPropertyTag,
     [SyntaxKind.JSDocThrowsTag]: forEachChildInJSDocTypeLikeTag,
     [SyntaxKind.JSDocOverloadTag]: forEachChildInJSDocTypeLikeTag,
     [SyntaxKind.JSDocSignature]: function forEachChildInJSDocSignature<T>(node: JSDocSignature, cbNode: (node: Node) => T | undefined, _cbNodes?: (nodes: NodeArray<Node>) => T | undefined): T | undefined {

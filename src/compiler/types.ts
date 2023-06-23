@@ -444,7 +444,7 @@ export const enum SyntaxKind {
     JSDocThrowsTag,
     JSDocSatisfiesTag,
     JSDocSuggestTag,
-
+    JSDocSuggestPropertyTag,
     // Synthesized list
     SyntaxList,
 
@@ -4109,6 +4109,11 @@ export interface JSDocSuggestTag extends JSDocTag {
     readonly typeExpression: JSDocTypeExpression;
 }
 
+export interface JSDocSuggestPropertyTag extends JSDocPropertyLikeTag {
+    readonly kind: SyntaxKind.JSDocSuggestPropertyTag;
+    readonly typeExpression: JSDocTypeExpression;
+}
+
 /** @internal */
 export interface JSDocSatisfiesExpression extends ParenthesizedExpression {
     readonly _jsDocSatisfiesExpressionBrand: never;
@@ -5071,7 +5076,7 @@ export interface TypeChecker {
     getContextualType(node: Expression): Type | undefined;
     /** @internal */ getContextualType(node: Expression, contextFlags?: ContextFlags): Type | undefined; // eslint-disable-line @typescript-eslint/unified-signatures
     /** @internal */ getContextualTypeForObjectLiteralElement(element: ObjectLiteralElementLike): Type | undefined;
-    /** @internal */ getContextualTypeForArgumentAtIndex(call: CallLikeExpression, argIndex: number): Type | undefined;
+    /** @internal */ getContextualTypeForArgumentAtIndex(call: CallLikeExpression, argIndex: number, contextFlags?: ContextFlags): Type | undefined;
     /** @internal */ getContextualTypeForJsxAttribute(attribute: JsxAttribute | JsxSpreadAttribute): Type | undefined;
     /** @internal */ isContextSensitive(node: Expression | MethodDeclaration | ObjectLiteralElementLike | JsxAttributeLike): boolean;
     /** @internal */ getTypeOfPropertyOfContextualType(type: Type, name: __String): Type | undefined;
