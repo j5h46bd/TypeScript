@@ -332,11 +332,13 @@ function verifyResolutionCache(actual: ts.ResolutionCache, actualProgram: ts.Pro
     }
 
     function verifyFileWatchesOfAffectingLocations(expected: Map<string, ts.FileWatcherOfAffectingLocation>, actual: Map<string, ts.FileWatcherOfAffectingLocation>) {
-        verifyMap(expected, actual, (expected, actual) => {
-            ts.Debug.assert(expected?.resolutions === actual?.resolutions);
-            ts.Debug.assert(expected?.files === actual?.files);
-            verifySet(expected?.paths, actual?.paths);
-        });
+        verifyMap(expected, actual, verifyFileWatcherOfAffectingLocation);
+    }
+
+    function verifyFileWatcherOfAffectingLocation(expected: ts.FileWatcherOfAffectingLocation | undefined, actual: ts.FileWatcherOfAffectingLocation | undefined) {
+        ts.Debug.assert(expected?.resolutions === actual?.resolutions);
+        ts.Debug.assert(expected?.files === actual?.files);
+        verifySet(expected?.symlinks, actual?.symlinks);
     }
 }
 
