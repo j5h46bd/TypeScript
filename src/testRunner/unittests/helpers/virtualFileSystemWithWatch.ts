@@ -275,7 +275,7 @@ export class TestServerHost implements server.ServerHost, FormatDiagnosticsHost,
     private fs: Map<Path, FSEntry> = new Map();
     private time = timeIncrements;
     getCanonicalFileName: (s: string) => string;
-    private toPath: (f: string) => Path;
+    toPath: (f: string) => Path;
     readonly timeoutCallbacks = new Callbacks(this, "Timeout");
     readonly immediateCallbacks = new Callbacks(this, "Immedidate");
     readonly screenClears: number[] = [];
