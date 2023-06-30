@@ -182,7 +182,12 @@ export function verifyProgramStructure(expectedProgram: ts.Program, actualProgra
     ts.Debug.assert(actual === expected, `Program verification:: ${projectName}`, () => `Program Details::\nExpected:\n${expected}\nActual:\n${actual}`);
 }
 
-export function verifyResolutionCache(actual: ts.ResolutionCache, actualProgram: ts.Program, resolutionHostCacheHost: ts.ResolutionCacheHost) {
+export function verifyResolutionCache(
+    actual: ts.ResolutionCache,
+    actualProgram: ts.Program,
+    resolutionHostCacheHost: ts.ResolutionCacheHost,
+    projectName: string,
+) {
     const currentDirectory = resolutionHostCacheHost.getCurrentDirectory!();
     const expected = ts.createResolutionCache(resolutionHostCacheHost, actual.rootDirForResolution, /*logChangesWhenResolvingModule*/ false);
     expected.startCachingPerDirectoryResolution();
@@ -229,15 +234,18 @@ export function verifyResolutionCache(actual: ts.ResolutionCache, actualProgram:
     resolutionToRefs.forEach((info, resolution) => {
         ts.Debug.assert(
             resolution.refCount === info.length,
-            `Expected Resolution ref count ${info.length} but got ${resolution.refCount}`,
+            `${projectName}:: Expected Resolution ref count ${info.length} but got ${resolution.refCount}`,
             () => `Expected from:: ${JSON.stringify(info, undefined, " ")}` +
                 `Actual from: ${resolution.refCount}`);
-        ts.Debug.assert(resolutionToExpected.get(resolution)!.refCount === resolution.refCount);
-        verifySet(resolutionToExpected.get(resolution)!.files, resolution.files);
+        ts.Debug.assert(
+            resolutionToExpected.get(resolution)!.refCount === resolution.refCount,
+            `${projectName}:: Expected Resolution ref count ${resolutionToExpected.get(resolution)!.refCount} but got ${resolution.refCount}`
+        );
+        verifySet(resolutionToExpected.get(resolution)!.files, resolution.files, `Resolution files`);
     });
-    verifyMapOfResolutionSet(expected.resolvedFileToResolution, actual.resolvedFileToResolution);
-    verifyResolutionSet(expected.resolutionsWithFailedLookups, actual.resolutionsWithFailedLookups);
-    verifyResolutionSet(expected.resolutionsWithOnlyAffectingLocations, actual.resolutionsWithOnlyAffectingLocations);
+    verifyMapOfResolutionSet(expected.resolvedFileToResolution, actual.resolvedFileToResolution, `resolvedFileToResolution`);
+    verifyResolutionSet(expected.resolutionsWithFailedLookups, actual.resolutionsWithFailedLookups, `resolutionsWithFailedLookups`);
+    verifyResolutionSet(expected.resolutionsWithOnlyAffectingLocations, actual.resolutionsWithOnlyAffectingLocations, `resolutionsWithOnlyAffectingLocations`);
     verifyDirectoryWatchesOfFailedLookups(expected.directoryWatchesOfFailedLookups, actual.directoryWatchesOfFailedLookups);
     verifyFileWatchesOfAffectingLocations(expected.fileWatchesOfAffectingLocations, actual.fileWatchesOfAffectingLocations);
 
@@ -247,14 +255,14 @@ export function verifyResolutionCache(actual: ts.ResolutionCache, actualProgram:
     expected.finishCachingPerDirectoryResolution(/*newProgram*/ undefined, actualProgram);
 
     resolutionToExpected.forEach(expected => {
-        ts.Debug.assert(!expected.refCount);
-        ts.Debug.assert(!expected.files?.size);
+        ts.Debug.assert(!expected.refCount, `${projectName}:: All the resolution should be released`);
+        ts.Debug.assert(!expected.files?.size, `${projectName}:: Shouldnt ref to any files`);
     });
-    ts.Debug.assert(expected.resolvedFileToResolution.size === 0);
-    ts.Debug.assert(expected.resolutionsWithFailedLookups.size === 0);
-    ts.Debug.assert(expected.resolutionsWithOnlyAffectingLocations.size === 0);
-    ts.Debug.assert(expected.directoryWatchesOfFailedLookups.size === 0);
-    ts.Debug.assert(expected.fileWatchesOfAffectingLocations.size === 0);
+    ts.Debug.assert(expected.resolvedFileToResolution.size === 0, `${projectName}:: resolvedFileToResolution should be released`);
+    ts.Debug.assert(expected.resolutionsWithFailedLookups.size === 0, `${projectName}:: resolutionsWithFailedLookups should be released`);
+    ts.Debug.assert(expected.resolutionsWithOnlyAffectingLocations.size === 0, `${projectName}:: resolutionsWithOnlyAffectingLocations should be released`);
+    ts.Debug.assert(expected.directoryWatchesOfFailedLookups.size === 0, `${projectName}:: directoryWatchesOfFailedLookups should be released`);
+    ts.Debug.assert(expected.fileWatchesOfAffectingLocations.size === 0, `${projectName}:: fileWatchesOfAffectingLocations should be released`);
 
     function collectResolutionToRefFromCache<T extends ts.ResolutionWithFailedLookupLocations>(
         cacheType: string,
@@ -264,7 +272,10 @@ export function verifyResolutionCache(actual: ts.ResolutionCache, actualProgram:
         deferWatchingNonRelativeResolution: boolean,
         storeExpcted: Map<ts.Path, ts.ModeAwareCache<ts.ResolutionWithFailedLookupLocations>>,
     ) {
-        ts.Debug.assert(actualProgram.getSourceFileByPath(fileName) || ts.endsWith(fileName, ts.inferredTypesContainingFile));
+        ts.Debug.assert(
+            actualProgram.getSourceFileByPath(fileName) || ts.endsWith(fileName, ts.inferredTypesContainingFile),
+            `${projectName}:: ${cacheType} ${fileName} Expect cache for file in program or auto type ref`,
+        );
         let expectedCache: ts.ModeAwareCache<ts.ResolutionWithFailedLookupLocations> | undefined;
         cache?.forEach((resolved, name, mode) => {
             const resolvedFileName = getResolvedFileName(resolved);
@@ -305,40 +316,73 @@ export function verifyResolutionCache(actual: ts.ResolutionCache, actualProgram:
         return expectedResolution;
     }
 
-    function verifyMap<Expected, Actual>(expected: Map<string, Expected> | undefined, actual: Map<string, Actual> | undefined, verifyValue: (expected: Expected | undefined, actual: Actual | undefined) => void) {
-        expected?.forEach((expected, path) => verifyValue(expected, actual?.get(path)));
-        actual?.forEach((actual, path) => verifyValue(expected?.get(path), actual));
+    function verifyMap<Expected, Actual>(
+        expected: Map<string, Expected> | undefined,
+        actual: Map<string, Actual> | undefined,
+        verifyValue: (expected: Expected | undefined, actual: Actual | undefined, key: string) => void,
+        caption: string,
+    ) {
+        expected?.forEach((expected, path) => verifyValue(expected, actual?.get(path), `${caption}:: ${path}`));
+        actual?.forEach((actual, path) => verifyValue(expected?.get(path), actual, `${caption}:: ${path}`));
     }
 
-    function verifySet(expected: Set<string> | undefined, actual: Set<string> | undefined) {
-        expected?.forEach(expected => ts.Debug.assert(actual?.has(expected)));
-        actual?.forEach(actual => ts.Debug.assert(expected?.has(actual)));
+    function verifySet(
+        expected: Set<string> | undefined,
+        actual: Set<string> | undefined,
+        caption: string,
+    ) {
+        expected?.forEach(expected => ts.Debug.assert(
+            actual?.has(expected),
+            `${projectName}:: ${caption}:: Expected should be present in actual`,
+        ));
+        actual?.forEach(actual => ts.Debug.assert(
+            expected?.has(actual),
+            `${projectName}:: ${caption}:: Actual should be present in expected`,
+        ));
     }
 
-    function verifyMapOfResolutionSet(expected: Map<ts.Path, Set<ts.ResolutionWithFailedLookupLocations>> | undefined, actual: Map<ts.Path, Set<ts.ResolutionWithFailedLookupLocations>> | undefined) {
-        verifyMap(expected, actual, verifyResolutionSet);
+    function verifyMapOfResolutionSet(
+        expected: Map<ts.Path, Set<ts.ResolutionWithFailedLookupLocations>> | undefined,
+        actual: Map<ts.Path, Set<ts.ResolutionWithFailedLookupLocations>> | undefined,
+        caption: string,
+    ) {
+        verifyMap(expected, actual, verifyResolutionSet, caption);
     }
 
-    function verifyResolutionSet(expected: Set<ts.ResolutionWithFailedLookupLocations> | undefined, actual: Set<ts.ResolutionWithFailedLookupLocations> | undefined) {
-        expected?.forEach(resolution => ts.Debug.assert(actual?.has(expectedToResolution.get(resolution as ExpectedResolution)!)));
-        actual?.forEach(resolution => ts.Debug.assert(expected?.has(resolutionToExpected.get(resolution)!)));
+    function verifyResolutionSet(
+        expected: Set<ts.ResolutionWithFailedLookupLocations> | undefined,
+        actual: Set<ts.ResolutionWithFailedLookupLocations> | undefined,
+        caption: string,
+    ) {
+        expected?.forEach(resolution => ts.Debug.assert(
+            actual?.has(expectedToResolution.get(resolution as ExpectedResolution)!),
+            `${projectName}:: ${caption}:: Expected resolution should be present in actual resolutions`,
+        ));
+        actual?.forEach(resolution => ts.Debug.assert(
+            expected?.has(resolutionToExpected.get(resolution)!),
+            `${projectName}:: ${caption}:: Actual resolution should be present in expected resolutions`
+        ));
     }
 
     function verifyDirectoryWatchesOfFailedLookups(expected: Map<string, ts.DirectoryWatchesOfFailedLookup>, actual: Map<string, ts.DirectoryWatchesOfFailedLookup>) {
-        verifyMap(expected, actual, (expected, actual) => {
-            ts.Debug.assert(expected?.refCount === actual?.refCount);
-            ts.Debug.assert(expected?.nonRecursive === actual?.nonRecursive);
-        });
+        verifyMap(expected, actual, (expected, actual, caption) => {
+            ts.Debug.assert(expected?.refCount === actual?.refCount, `${projectName}:: ${caption}:: refCount`);
+            ts.Debug.assert(expected?.nonRecursive === actual?.nonRecursive, `${projectName}:: ${caption}:: nonRecursive`);
+        }, "directoryWatchesOfFailedLookups");
     }
 
     function verifyFileWatchesOfAffectingLocations(expected: Map<string, ts.FileWatcherOfAffectingLocation>, actual: Map<string, ts.FileWatcherOfAffectingLocation>) {
-        verifyMap(expected, actual, verifyFileWatcherOfAffectingLocation);
+        verifyMap(expected, actual, verifyFileWatcherOfAffectingLocation, "fileWatchesOfAffectingLocations");
     }
 
-    function verifyFileWatcherOfAffectingLocation(expected: ts.FileWatcherOfAffectingLocation | undefined, actual: ts.FileWatcherOfAffectingLocation | undefined) {
-        ts.Debug.assert(expected?.resolutions === actual?.resolutions);
-        ts.Debug.assert(expected?.files === actual?.files);
-        verifySet(expected?.symlinks, actual?.symlinks);
+    function verifyFileWatcherOfAffectingLocation(
+        expected: ts.FileWatcherOfAffectingLocation | undefined,
+        actual: ts.FileWatcherOfAffectingLocation | undefined,
+        caption: string,
+    ) {
+        ts.Debug.assert(expected?.resolutions === actual?.resolutions, `${projectName}:: ${caption}:: resolutions`);
+        ts.Debug.assert(expected?.files === actual?.files, `${projectName}:: ${caption}:: files`);
+        verifySet(expected?.symlinks, actual?.symlinks, `${caption}:: symlinks`);
     }
 }
 
@@ -418,7 +462,7 @@ function verifyProgram(service: ts.server.ProjectService, project: ts.server.Pro
         projectReferences: project.getProjectReferences(),
         host: compilerHost,
     }), project.getCurrentProgram()!, project.projectName);
-    verifyResolutionCache(project.resolutionCache, project.getCurrentProgram()!, resolutionHostCacheHost);
+    verifyResolutionCache(project.resolutionCache, project.getCurrentProgram()!, resolutionHostCacheHost, project.projectName);
 }
 
 export function incrementalVerifier(service: ts.server.ProjectService) {

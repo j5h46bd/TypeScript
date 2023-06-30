@@ -250,6 +250,7 @@ export function runWatchBaseline<T extends ts.BuilderProgram = ts.EmitAndSemanti
                 oldSnap,
                 baselineSourceMap,
                 baselineDependencies,
+                caption,
                 resolutionCache: !skipStructureCheck ? (watchOrSolution as ts.WatchOfConfigFile<T> | undefined)?.getResolutionCache?.() : undefined,
                 useSourceOfProjectReferenceRedirect,
                 symlinksNotReflected,
@@ -270,6 +271,7 @@ export function isWatch(commandLineArgs: readonly string[]) {
 export interface WatchBaseline extends BaselineBase, TscWatchCheckOptions {
     oldPrograms: readonly (CommandLineProgram | undefined)[];
     getPrograms: () => readonly CommandLineProgram[];
+    caption?: string;
     resolutionCache?: ts.ResolutionCache;
     useSourceOfProjectReferenceRedirect?: () => boolean;
     symlinksNotReflected?: readonly string[]
@@ -282,6 +284,7 @@ export function watchBaseline({
     oldSnap,
     baselineSourceMap,
     baselineDependencies,
+    caption,
     resolutionCache,
     useSourceOfProjectReferenceRedirect,
     symlinksNotReflected,
@@ -299,12 +302,13 @@ export function watchBaseline({
     // Verify program structure and resolution cache when incremental edit with tsc --watch (without build mode)
     if (resolutionCache && programs.length) {
         ts.Debug.assert(programs.length === 1);
-        verifyProgramStructureAndResolutionCache(sys, programs[0][0], resolutionCache, useSourceOfProjectReferenceRedirect, symlinksNotReflected);
+        verifyProgramStructureAndResolutionCache(caption!, sys, programs[0][0], resolutionCache, useSourceOfProjectReferenceRedirect, symlinksNotReflected);
     }
     sys.writtenFiles.clear();
     return programs;
 }
 function verifyProgramStructureAndResolutionCache(
+    caption: string,
     sys: TscWatchSystem,
     program: ts.Program,
     resolutionCache: ts.ResolutionCache,
@@ -331,7 +335,7 @@ function verifyProgramStructureAndResolutionCache(
         options,
         projectReferences: program.getProjectReferences(),
         host: compilerHost,
-    }), program, options.configFilePath || JSON.stringify(program.getRootFileNames()));
+    }), program, caption);
     verifyResolutionCache(resolutionCache, program, {
         ...compilerHost,
 
@@ -349,7 +353,7 @@ function verifyProgramStructureAndResolutionCache(
         scheduleInvalidateResolutionsOfFailedLookupLocations: ts.noop,
         getCachedDirectoryStructureHost: ts.returnUndefined,
         writeLog: ts.noop,
-    });
+    }, caption);
 }
 export interface VerifyTscWatch extends TscWatchCompile {
     baselineIncremental?: boolean;
